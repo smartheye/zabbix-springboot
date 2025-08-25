@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: springserver
+  jmx:
+    enabled: true
+# 监控指标
+management:
+  endpoints:
+    web:
+      exposure:
+        # include: *
+        include: health,info,metrics,prometheus  # 暴露这些端点
+  endpoint:
+    metrics:
+      enabled: true  # 开启 metrics 端点
+  metrics:
+    enable:
+      jvm: true      # 开启 jvm 指标（默认是开启的）
