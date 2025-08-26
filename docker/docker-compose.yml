@@ -1,43 +1,67 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: zabbix-mysql
+    container_name: mysql
+    hostname: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root_password   # 修改为强密码
+      MYSQL_ROOT_PASSWORD: root   # 修改为强密码
       MYSQL_DATABASE: zabbix
       MYSQL_USER: zabbix
-      MYSQL_PASSWORD: zabbix_password     # 修改为强密码
+      MYSQL_PASSWORD: zabbix     # 修改为强密码
     command:
       - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_bin
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --log-error-suppression-list=MY-013360
     volumes:
-      - ./mysql_data:/var/lib/mysql
+      - ./data/mysql_data:/var/lib/mysql
+      - ./conf/mysql/init.d/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-pzabbix"]
+      interval: 10s
+      retries: 5
 
   zabbix-server:
     image: zabbix/zabbix-server-mysql:alpine-latest
     container_name: zabbix-server
+    hostname: zabbix-server
     environment:
+      ZBX_LISTENIP: 0.0.0.0
+      ZBX_LISTENPORT: 10051
+      # debug level。3 warning， 4 debug 5， extended debug
+      ZBX_DEBUGLEVEL: 3
       DB_SERVER_HOST: mysql
       MYSQL_DATABASE: zabbix
       MYSQL_USER: zabbix
-      MYSQL_PASSWORD: zabbix_password
+      MYSQL_PASSWORD: zabbix
     depends_on:
       - mysql
     ports:
       - "10051:10051"   # Zabbix server 端口
     volumes:
-      - ./zabbix_server_data:/var/lib/zabbix
+      - ./data/zabbix_server_data:/var/lib/zabbix
     restart: unless-stopped
+    # 添加健康检查配置
+    #healthcheck:
+    #  test: ["nc", "-z", "localhost", "10051"]  # 检测本地10051端口是否开放
+    #  interval: 10s    # 每10秒检查一次
+    #  timeout: 5s      # 检查超时时间5秒
+    #  retries: 5       # 连续5次失败视为不健康
+    #  start_period: 60s # 启动后等待60秒再开始检查（给服务初始化时间）
 
   zabbix-web:
     image: zabbix/zabbix-web-nginx-mysql:alpine-latest
     container_name: zabbix-web
+    hostname: zabbix-web
     environment:
+      # 数据库服务器ip
       DB_SERVER_HOST: mysql
       MYSQL_DATABASE: zabbix
       MYSQL_USER: zabbix
-      MYSQL_PASSWORD: zabbix_password
+      MYSQL_PASSWORD: zabbix
       PHP_TZ: Asia/Shanghai   # 修改为你的时区
       ZBX_SERVER_HOST: zabbix-server
     depends_on:
@@ -46,17 +70,50 @@ services:
     ports:
       - "8080:8080"   # Web界面 (http://localhost:8080)
     restart: unless-stopped
-
+    # 添加健康检查配置
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 10s    # 每10秒检查一次
+      timeout: 5s      # 检查超时时间5秒
+      retries: 5       # 连续5次失败视为不健康
+      start_period: 30s # 启动后等待30秒再开始检查（给服务启动时间）
+    
   zabbix-agent:
     image: zabbix/zabbix-agent:alpine-latest
     container_name: zabbix-agent
+    hostname: zabbix-agent
     environment:
+      # Zabbix 服务器IP
       ZBX_SERVER_HOST: zabbix-server
-      ZBX_HOSTNAME: "zabbix-agent"
+      # Zabbix 服务器PORT
+      ZBX_SERVER_PORT: 10051
+      # agent主机名
+      ZBX_HOSTNAME: zabbix-agent
+      # 可选：添加元数据，用于后续动作筛选
+      ZBX_METADATA: "docker-agent"
+      # agent端口
+      ZBX_AGENT_PORT: 10050
+      ZBX_DEBUGLEVEL: 3  # 调试级别，0-5，问题排查时可设为3
+    ports:
+      - "10050:10050"   # Zabbix agent 端口
     depends_on:
       - zabbix-server
     restart: unless-stopped
 
+  zabbix-init:
+    #image: alpine:latest  # 包含 curl 和 jq 的轻量镜像
+    build:
+      context: ./dockerfile/zabbix-init  # Dockerfile 所在目录（根据实际路径调整）
+      dockerfile: Dockerfile
+    image: alpine-jq
+    container_name: zabbix-init
+    hostname: zabbix-init
+    volumes:
+      - ./conf/zabbix-init/auto_register.sh:/auto_register.sh
+    command: sh -xv /auto_register.sh
+    depends_on:
+      - zabbix-web  # 确保 Web 服务启动后再执行
+    restart: on-failure  # 执行一次后失败重启（成功后退出）
 volumes:
   mysql_data:
   zabbix_server_data:
