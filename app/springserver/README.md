@@ -1,23 +1,47 @@
+# Springboot的Demo App
 
-编译：
+## App概要
+
+采取和实际项目采用的Springboot，Spring Cloud的版本一样。版本分别如下
+
+- JDK:  1.8
+- Springboot:  2.7.12
+- SpringCloud:  2021.0.5
+
+## 环境准备
+
+### 编译方法
+
+#### 编译
+
+```shell
 ./mvnw clean package -DskipTests
+```
 
-打包镜像：
-docker build -t app:1.0 .   
+#### 打包镜像
 
-启动：
-docker run -p 8080:8080 app:1.0 
+```shell
+docker build -t app:1.0 .
+```
 
-启动应用后访问：
+#### 启动
 
-http://localhost:8080/actuator/metrics 可以看到有哪些指标
+```shell
+docker run -p 8080:8080 app:1.0
+```
+启动应用后访问下列URL
 
-常见 GC Pause 相关指标有：
+##### Spring Actuator的Metrics
 
-jvm.gc.pause （GC 停顿时间分布直方图）
+通过以下URL 可以看到获取Actuator的Metrics方法
 
-jvm.gc.memory.allocated
+[http://localhost:8080/actuator/metrics](http://localhost:8080/actuator/metrics)
 
-jvm.gc.memory.promoted
+##### Spring Actuator的Metrics(Promtheus格式)
 
-jvm.gc.max.data.size
+
+通过以下URL 可以看到Prometheus格式的Metrics方法
+
+[http://localhost:8090/actuator/prometheus](http://localhost:8090/actuator/prometheus)
+
+输出格式参考promethues格式的输出.txt

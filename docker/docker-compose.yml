@@ -68,7 +68,7 @@ services:
       - mysql
       - zabbix-server
     ports:
-      - "8080:8080"   # Web界面 (http://localhost:8080)
+      - "8180:8080"   # Web界面 (http://localhost:8180)
     restart: unless-stopped
     # 添加健康检查配置
     healthcheck:
